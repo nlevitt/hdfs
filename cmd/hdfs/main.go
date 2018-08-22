@@ -8,7 +8,7 @@ import (
 	"os/user"
 	"time"
 
-	"github.com/colinmarc/hdfs/v2"
+	"github.com/colinmarc/hdfs"
 	"github.com/colinmarc/hdfs/v2/hadoopconf"
 	"github.com/pborman/getopt"
 )
@@ -21,7 +21,7 @@ var (
 The flags available are a subset of the POSIX ones, but should behave similarly.
 
 Valid commands:
-  ls [-lah] [FILE]...
+  ls [-lahdR] [FILE]...
   rm [-rf] FILE...
   mv [-nT] SOURCE... DEST
   mkdir [-p] FILE...
@@ -43,6 +43,8 @@ Valid commands:
 	lsl    = lsOpts.Bool('l')
 	lsa    = lsOpts.Bool('a')
 	lsh    = lsOpts.Bool('h')
+	lsd    = lsOpts.Bool('d')
+	lsR    = lsOpts.Bool('R')
 
 	rmOpts = getopt.New()
 	rmr    = rmOpts.Bool('r')
@@ -107,7 +109,7 @@ func main() {
 		fatal("gohdfs version", version)
 	case "ls":
 		lsOpts.Parse(argv)
-		ls(lsOpts.Args(), *lsl, *lsa, *lsh)
+		ls(lsOpts.Args(), *lsl, *lsa, *lsh, *lsd, *lsR)
 	case "rm":
 		rmOpts.Parse(argv)
 		rm(rmOpts.Args(), *rmr, *rmf)
