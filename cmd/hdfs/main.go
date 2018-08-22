@@ -21,7 +21,7 @@ var (
 The flags available are a subset of the POSIX ones, but should behave similarly.
 
 Valid commands:
-  ls [-lahd] [FILE]...
+  ls [-lahdR] [FILE]...
   rm [-rf] FILE...
   mv [-nT] SOURCE... DEST
   mkdir [-p] FILE...
@@ -44,6 +44,7 @@ Valid commands:
 	lsa    = lsOpts.Bool('a')
 	lsh    = lsOpts.Bool('h')
 	lsd    = lsOpts.Bool('d')
+	lsR    = lsOpts.Bool('R')
 
 	rmOpts = getopt.New()
 	rmr    = rmOpts.Bool('r')
@@ -108,7 +109,7 @@ func main() {
 		fatal("gohdfs version", version)
 	case "ls":
 		lsOpts.Parse(argv)
-		ls(lsOpts.Args(), *lsl, *lsa, *lsh, *lsd)
+		ls(lsOpts.Args(), *lsl, *lsa, *lsh, *lsd, *lsR)
 	case "rm":
 		rmOpts.Parse(argv)
 		rm(rmOpts.Args(), *rmr, *rmf)

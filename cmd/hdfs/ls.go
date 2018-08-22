@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io"
+	// "io"
 	"os"
 	"path"
 	"strconv"
@@ -12,62 +12,151 @@ import (
 	"github.com/colinmarc/hdfs"
 )
 
-func ls(paths []string, long, all, humanReadable, dirsPlain bool) {
-	_dirsPlain := dirsPlain
+type LSifier struct {
+	client *hdfs.Client
+	long bool
+	all bool
+	humanReadable bool
+	descend bool
+	tw *tabwriter.Writer
+}
+
+func ls(paths []string, long, all, humanReadable, dirsPlain, recurse bool) {
 	paths, client, err := getClientAndExpandedPaths(paths)
 	if err != nil {
 		fatal(err)
 	}
 
-	if len(paths) == 0 {
-		paths = []string{userDir(client)}
-		_dirsPlain = false
+	lsifier := LSifier{
+		client: client,
+		long: long,
+		all: all,
+		humanReadable: humanReadable,
+		// print dir contents at first level unless -d
+		descend: !dirsPlain,
+	}
+	if long {
+		lsifier.tw = tabwriter.NewWriter(os.Stdout, 3, 8, 0, ' ', tabwriter.AlignRight|tabwriter.TabIndent)
 	}
 
-	files := make([]string, 0, len(paths))
-	fileInfos := make([]os.FileInfo, 0, len(paths))
-	dirs := make([]string, 0, len(paths))
+	if len(paths) == 0 {
+		paths = []string{userDir(client)}
+	}
+
+	simple := make(map[string]os.FileInfo)
+	descend := make(map[string]os.FileInfo)
 	for _, p := range paths {
-		fi, err := client.Stat(p)
+		fileInfo, err := lsifier.client.Stat(p)
 		if err != nil {
 			fatal(err)
 		}
 
-		if !_dirsPlain && fi.IsDir() {
-			dirs = append(dirs, p)
-		} else {
-			files = append(files, p)
-			fileInfos = append(fileInfos, fi)
+		if lsifier.descend && fileInfo.IsDir() {
+			descend[p] = fileInfo
 		}
 	}
 
-	if len(files) == 0 && len(dirs) == 1 {
-		printDir(client, dirs[0], long, all, humanReadable)
-	} else {
-		if long {
-			tw := lsTabWriter()
-			for i, p := range files {
-				printLong(tw, p, fileInfos[i], humanReadable)
-			}
-
-			tw.Flush()
-		} else {
-			for _, p := range files {
-				fmt.Println(p)
-			}
+	// after first level, only print dir contents if -R
+	lsifier.descend = recurse
+	if len(simple) == 0 && len(descend) == 1 {
+		for paff, fileInfo := range(descend) {
+			lsifier.lsDir(paff, fileInfo)
 		}
-
-		for i, dir := range dirs {
-			if i > 0 || len(files) > 0 {
-				fmt.Println()
-			}
-
-			fmt.Printf("%s/:\n", dir)
-			printDir(client, dir, long, all, humanReadable)
-		}
+	} else  {
+		lsifier.list(simple, descend)
 	}
 }
 
+func (lsifier *LSifier) list(simple, descend map[string]os.FileInfo) {
+	if lsifier.long {
+		defer lsifier.tw.Flush()
+	}
+	for paff, fileInfo := range(simple) {
+		lsifier.lsFile(paff, fileInfo)
+	}
+	for paff, fileInfo := range(descend) {
+		fmt.Printf("\n%s/:\n", paff)
+		lsifier.lsDir(paff, fileInfo)
+	}
+}
+
+func (lsifier *LSifier) lsFile(paff string, fileInfo os.FileInfo) {
+	if lsifier.long {
+		lsifier.printLong(paff, fileInfo)
+	} else {
+		fmt.Println(paff)
+	}
+}
+
+func (lsifier *LSifier) printLong(paff string, fileInfo os.FileInfo) {
+	fi := fileInfo.(*hdfs.FileInfo)
+	// mode owner group size date(\w tab) time/year name
+	mode := fi.Mode().String()
+	owner := fi.Owner()
+	group := fi.OwnerGroup()
+	size := strconv.FormatInt(fi.Size(), 10)
+	if lsifier.humanReadable {
+		size = formatBytes(uint64(fi.Size()))
+	}
+
+	modtime := fi.ModTime()
+	date := modtime.Format("Jan _2")
+	var timeOrYear string
+	if modtime.Year() == time.Now().Year() {
+		timeOrYear = modtime.Format("15:04")
+	} else {
+		timeOrYear = modtime.Format("2006")
+	}
+
+	fmt.Fprintf(lsifier.tw, "%s \t%s \t %s \t %s \t%s \t%s \t%s\n",
+		mode, owner, group, size, date, timeOrYear, paff)
+}
+
+func (lsifier *LSifier) lsDir(paff string, fileInfo os.FileInfo) {
+	// special logic for printing . and ..
+	if lsifier.all {
+		for _, special := range []string{".", ".."} {
+			p := path.Clean(paff) + "/" + special
+			if lsifier.long {
+				fileInfo, err := lsifier.client.Stat(p)
+				if err != nil {
+					fatal(err)
+				}
+				lsifier.printLong(paff, fileInfo)
+			} else {
+				fmt.Println(p)
+			}
+		}
+	}
+
+	// readdir
+	dirReader, err := lsifier.client.Open(paff)
+	if err != nil {
+		fatal(err)
+	}
+	files, err := dirReader.Readdir(-1)
+	if err != nil {
+		fatal(err)
+	}
+
+	simple := make(map[string]os.FileInfo)
+	descend := make(map[string]os.FileInfo)
+	for _, fileInfo := range files {
+		if !lsifier.all && strings.HasPrefix(fileInfo.Name(), ".") {
+			continue
+		}
+		p := path.Join(paff, fileInfo.Name())
+
+		simple[p] = fileInfo
+		if lsifier.descend && fileInfo.IsDir() {
+			descend[p] = fileInfo
+		}
+	}
+
+	lsifier.list(simple, descend)
+}
+
+/*
 func printDir(client *hdfs.Client, dir string, long, all, humanReadable bool) {
 	dirReader, err := client.Open(dir)
 	if err != nil {
@@ -156,3 +245,4 @@ func printLong(tw *tabwriter.Writer, name string, info os.FileInfo, humanReadabl
 func lsTabWriter() *tabwriter.Writer {
 	return tabwriter.NewWriter(os.Stdout, 3, 8, 0, ' ', tabwriter.AlignRight|tabwriter.TabIndent)
 }
+*/
