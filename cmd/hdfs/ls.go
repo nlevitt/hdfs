@@ -12,7 +12,8 @@ import (
 	"github.com/colinmarc/hdfs"
 )
 
-func ls(paths []string, long, all, humanReadable bool) {
+func ls(paths []string, long, all, humanReadable, dirsPlain bool) {
+	_dirsPlain := dirsPlain
 	paths, client, err := getClientAndExpandedPaths(paths)
 	if err != nil {
 		fatal(err)
@@ -20,6 +21,7 @@ func ls(paths []string, long, all, humanReadable bool) {
 
 	if len(paths) == 0 {
 		paths = []string{userDir(client)}
+		_dirsPlain = false
 	}
 
 	files := make([]string, 0, len(paths))
@@ -31,7 +33,7 @@ func ls(paths []string, long, all, humanReadable bool) {
 			fatal(err)
 		}
 
-		if fi.IsDir() {
+		if !_dirsPlain && fi.IsDir() {
 			dirs = append(dirs, p)
 		} else {
 			files = append(files, p)
