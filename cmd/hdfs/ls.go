@@ -10,7 +10,7 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
-	"github.com/colinmarc/hdfs"
+	"github.com/nlevitt/hdfs"
 )
 
 type LSifier struct {

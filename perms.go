@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	hdfs "github.com/colinmarc/hdfs/v2/protocol/hadoop_hdfs"
+	hdfs "github.com/nlevitt/hdfs/v2/protocol/hadoop_hdfs"
 	"github.com/golang/protobuf/proto"
 )
 

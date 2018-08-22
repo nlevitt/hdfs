@@ -1,6 +1,6 @@
 sudo: required
 language: go
-go_import_path: github.com/colinmarc/hdfs
+go_import_path: github.com/nlevitt/hdfs
 go: 1.11beta2
 env:
 - PLATFORM=cdh5

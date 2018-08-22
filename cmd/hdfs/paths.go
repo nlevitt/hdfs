@@ -7,7 +7,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
-	"github.com/colinmarc/hdfs"
+	"github.com/nlevitt/hdfs"
 )
 
 var (
